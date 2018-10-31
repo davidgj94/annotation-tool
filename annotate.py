@@ -72,10 +72,13 @@ def warp_image(image, homography, alpha_channel=True, flags=cv2.INTER_LINEAR, ou
 
     return warped, (int(ymin), int(ymax))
 
-def plot_overlap(alpha1, alpha2):
-    overlap = np.logical_and(alpha1, alpha2)
+def plot_overlap(image, overlap, alpha=0.5, color=[255,0,0]):
+    image = np.float32(image)
+    image[overlap] *= 1. - alpha
+    image[overlap] += alpha * np.array(color)
+    image = np.uint8(image)
     plt.figure()
-    plt.imshow(overlap)
+    plt.imshow(image)
     plt.show()
 
 
@@ -94,8 +97,8 @@ def msec2string(time_msec):
 
 def blend(image1, image2, ymin, ymax, alpha=0.5):
 
-    full_image1 = np.zeros((ymax,4096,3))
-    full_image2 = np.zeros((ymax,4096,3))
+    full_image1 = np.zeros((ymax,image1.shape[1],3))
+    full_image2 = np.zeros((ymax,image1.shape[1],3))
 
     full_image1[:image1.shape[0],:] = image1
     full_image1[ymin:,:] = image2
@@ -121,45 +124,65 @@ delay_msec = int(1000 * (1 / args.fps))
 
 vidcap = cv2.VideoCapture(args.video_path)
 
+# vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
+# success, frame_end = vidcap.read()
+# frame_end = downscale(frame_end, 1000, False, pad_img=False)
+# mask_end = cv2.imread('end.png')
+# mask_end = downscale(mask_end, 1000, True, pad_img=False)
+
+# vidcap.set(cv2.CAP_PROP_POS_MSEC,(start_time_msec))
+# success, frame_start = vidcap.read()
+# frame_start = downscale(frame_start, 1000, False, pad_img=False)
+# mask_start = cv2.imread('start.png')
+# mask_start = downscale(mask_start, 1000, True, pad_img=False)
+
+# M = homography(frame_end, frame_start, draw_matches=False)
+# total_mask, _ = warp_image(mask_start, M, alpha_channel=False, flags=cv2.INTER_NEAREST)
+# total_mask[:mask_end.shape[0],:mask_end.shape[1]] = mask_end
+# #full_image, (ymin,ymax) = warp_image(frame_start, M, alpha_channel=False)
+# #full_image = blend(frame_end, full_image[ymin:,:], ymin, ymax)
+# #plt.figure()
+# #plt.imshow(full_image[...,::-1])
+# #plt.show()
+
+# current_time = end_time_msec - delay_msec
+# success = True
+# while success and (current_time > start_time_msec):
+#     vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
+#     success, frame_next = vidcap.read()
+#     if success:
+#         frame_next = downscale(frame_next, 1000, False, pad_img=False)
+#         M = homography(frame_end, frame_next, draw_matches=False)
+#         warped, (ymin, ymax) = warp_image(frame_next, M, alpha_channel=False)
+#         mask = total_mask[ymin:ymax,:]
+#         warped = warped[ymin:ymax,:]
+#         mask[mask == 255] = 1
+#         vis_img = vis.vis_seg(warped[...,::-1], mask[...,0], vis.make_palette(2))
+#         plt.figure()
+#         plt.imshow(vis_img)
+#         plt.show()
+#         print msec2string(current_time)
+#         current_time -= delay_msec
+
+
 vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
 success, frame_end = vidcap.read()
 frame_end = downscale(frame_end, 1000, False, pad_img=False)
-mask_end = cv2.imread('end.png')
-mask_end = downscale(mask_end, 1000, True, pad_img=False)
-
-vidcap.set(cv2.CAP_PROP_POS_MSEC,(start_time_msec))
-success, frame_start = vidcap.read()
-frame_start = downscale(frame_start, 1000, False, pad_img=False)
-mask_start = cv2.imread('start.png')
-mask_start = downscale(mask_start, 1000, True, pad_img=False)
-
-M = homography(frame_end, frame_start, draw_matches=False)
-total_mask, _ = warp_image(mask_start, M, alpha_channel=False, flags=cv2.INTER_NEAREST)
-total_mask[:mask_end.shape[0],:mask_end.shape[1]] = mask_end
-#full_image, (ymin,ymax) = warp_image(frame_start, M, alpha_channel=False)
-#full_image = blend(frame_end, full_image[ymin:,:], ymin, ymax)
-#plt.figure()
-#plt.imshow(full_image[...,::-1])
-#plt.show()
-
 current_time = end_time_msec - delay_msec
-success = True
 while success and (current_time > start_time_msec):
     vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
     success, frame_next = vidcap.read()
     if success:
         frame_next = downscale(frame_next, 1000, False, pad_img=False)
         M = homography(frame_end, frame_next, draw_matches=False)
-        warped, (ymin, ymax) = warp_image(frame_next, M, alpha_channel=False)
-        mask = total_mask[ymin:ymax,:]
-        warped = warped[ymin:ymax,:]
-        mask[mask == 255] = 1
-        vis_img = vis.vis_seg(warped[...,::-1], mask[...,0], vis.make_palette(2))
-        plt.figure()
-        plt.imshow(vis_img)
-        plt.show()
+        warped, (ymin, ymax) = warp_image(frame_next, M)
+        frame_end_alpha = np.vstack((
+            np.ones((frame_end.shape[0], frame_end.shape[1])), 
+            np.zeros((warped.shape[0] - frame_end.shape[0], frame_end.shape[1]))
+            ))
+        overlap = np.logical_and(warped[...,-1], frame_end_alpha)
+        warped = cv2.cvtColor(warped, cv2.COLOR_BGRA2BGR)
+        full_image = blend(frame_end, warped[ymin:,:], ymin, ymax)
+        plot_overlap(full_image[...,::-1], overlap)
         print msec2string(current_time)
         current_time -= delay_msec
-
-
-
