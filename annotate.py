@@ -6,6 +6,7 @@ import argparse
 import time
 import pdb
 import vis
+from downscale import _downscale as downscale
 
 def homography(image_a, image_b, draw_matches=True):
 
@@ -44,7 +45,7 @@ def homography(image_a, image_b, draw_matches=True):
 
     return M
 
-def warp_image(image, homography, alpha_channel=True, flags=cv2.INTER_LINEAR):
+def warp_image(image, homography, alpha_channel=True, flags=cv2.INTER_LINEAR, output_width=1000):
 
     if alpha_channel:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
@@ -65,19 +66,9 @@ def warp_image(image, homography, alpha_channel=True, flags=cv2.INTER_LINEAR):
     #width = int(round(xmax - xmin))
     #heigth = int(round(ymax - ymin))
 
-    size = (4096, int(ymax))
+    size = (output_width, int(ymax))
 
     warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=flags)
-
-    # if xmin < 0:
-    #     warped = warped[:,int(-xmin):,:]
-    # if xmin > 0:
-    #     warped = cv2.copyMakeBorder(warped, top=0, bottom=0, left=int(xmax), right=0, borderType= cv2.BORDER_CONSTANT, value=[0,0,0,0])
-    # if xmax > 4096:
-    #     pdb.set_trace()
-    #     warped = warped[:,:-(warped.shape[1] - 4096),:]
-    # if warped.shape[1] < 4096:
-    #     warped = cv2.copyMakeBorder(warped, top=0, bottom=0, left=0, right=(4096 - warped.shape[1]), borderType= cv2.BORDER_CONSTANT, value=[0,0,0,0])
 
     return warped, (int(ymin), int(ymax))
 
@@ -130,64 +121,34 @@ delay_msec = int(1000 * (1 / args.fps))
 
 vidcap = cv2.VideoCapture(args.video_path)
 
-# vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
-# success, frame_end = vidcap.read()
-# current_time = end_time_msec - delay_msec
-# while success and (current_time > start_time_msec):
-#     vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
-#     success, frame_next = vidcap.read()
-#     if success:
-#         M = homography(frame_end, frame_next, draw_matches=False)
-#         warped = warp_image(frame_next, M)
-#         frame_end_alpha = np.vstack((
-#             np.ones((frame_end.shape[0], frame_end.shape[1])), 
-#             np.zeros((warped.shape[0] - frame_end.shape[0], frame_end.shape[1]))
-#             ))
-#         plot_overlap(warped[:,:,-1], frame_end_alpha)
-#         print msec2string(current_time)
-#         current_time -= delay_msec
-
-
-# vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
-# success, frame_end = vidcap.read()
-# cv2.imwrite('end.png', frame_end)
-
-# vidcap.set(cv2.CAP_PROP_POS_MSEC,(start_time_msec))
-# success, frame_start = vidcap.read()
-# cv2.imwrite('start.png', frame_start)
-
-
 vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
 success, frame_end = vidcap.read()
+frame_end = downscale(frame_end, 1000, False, pad_img=False)
 mask_end = cv2.imread('end.png')
+mask_end = downscale(mask_end, 1000, True, pad_img=False)
 
 vidcap.set(cv2.CAP_PROP_POS_MSEC,(start_time_msec))
 success, frame_start = vidcap.read()
+frame_start = downscale(frame_start, 1000, False, pad_img=False)
 mask_start = cv2.imread('start.png')
+mask_start = downscale(mask_start, 1000, True, pad_img=False)
 
 M = homography(frame_end, frame_start, draw_matches=False)
 total_mask, _ = warp_image(mask_start, M, alpha_channel=False, flags=cv2.INTER_NEAREST)
 total_mask[:mask_end.shape[0],:mask_end.shape[1]] = mask_end
-full_image, (ymin,ymax) = warp_image(frame_start, M, alpha_channel=False)
-#full_image[:frame_end.shape[0],:frame_end.shape[1]] = frame_end
-# frame_end_alpha = np.vstack((
-#             np.ones((frame_end.shape[0], frame_end.shape[1])), 
-#             np.zeros((full_image.shape[0] - frame_end.shape[0], frame_end.shape[1]))
-#             ))
-# overlap = np.logical_and(full_image[...,-1], frame_end_alpha)
-full_image = blend(frame_end, full_image[ymin:,:], ymin, ymax)
-# plt.figure()
-# plt.imshow(full_image[...,::-1])
-# plt.show()
+#full_image, (ymin,ymax) = warp_image(frame_start, M, alpha_channel=False)
+#full_image = blend(frame_end, full_image[ymin:,:], ymin, ymax)
+#plt.figure()
+#plt.imshow(full_image[...,::-1])
+#plt.show()
 
-
-vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
-success, frame_end = vidcap.read()
 current_time = end_time_msec - delay_msec
+success = True
 while success and (current_time > start_time_msec):
     vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
     success, frame_next = vidcap.read()
     if success:
+        frame_next = downscale(frame_next, 1000, False, pad_img=False)
         M = homography(frame_end, frame_next, draw_matches=False)
         warped, (ymin, ymax) = warp_image(frame_next, M, alpha_channel=False)
         mask = total_mask[ymin:ymax,:]

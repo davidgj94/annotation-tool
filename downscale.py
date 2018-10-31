@@ -44,7 +44,7 @@ def _downscale(img, max_dim, is_mask, pad_img=True):
             down_img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
             pad_value = 0
         else:
-            down_img = cv2.resize(img[:,:,0], None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_NEAREST)
+            down_img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_NEAREST)
             pad_value = 255
         # pad image so that its dimension are multiple of 32
         if pad_img:
