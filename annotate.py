@@ -44,7 +44,7 @@ def homography(image_a, image_b, draw_matches=True):
 
     return M
 
-def warp_image(image, homography, alpha_channel=True):
+def warp_image(image, homography, alpha_channel=True, flags=cv2.INTER_LINEAR):
 
     if alpha_channel:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
@@ -67,7 +67,7 @@ def warp_image(image, homography, alpha_channel=True):
 
     size = (4096, int(ymax))
 
-    warped = cv2.warpPerspective(src=image, M=homography, dsize=size)
+    warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=flags)
 
     # if xmin < 0:
     #     warped = warped[:,int(-xmin):,:]
@@ -166,7 +166,7 @@ success, frame_start = vidcap.read()
 mask_start = cv2.imread('start.png')
 
 M = homography(frame_end, frame_start, draw_matches=False)
-total_mask, _ = warp_image(mask_start, M, alpha_channel=False)
+total_mask, _ = warp_image(mask_start, M, alpha_channel=False, flags=cv2.INTER_NEAREST)
 total_mask[:mask_end.shape[0],:mask_end.shape[1]] = mask_end
 full_image, (ymin,ymax) = warp_image(frame_start, M, alpha_channel=False)
 #full_image[:frame_end.shape[0],:frame_end.shape[1]] = frame_end
@@ -192,9 +192,7 @@ while success and (current_time > start_time_msec):
         warped, (ymin, ymax) = warp_image(frame_next, M, alpha_channel=False)
         mask = total_mask[ymin:ymax,:]
         warped = warped[ymin:ymax,:]
-        pdb.set_trace()
         mask[mask == 255] = 1
-        pdb.set_trace()
         vis_img = vis.vis_seg(warped[...,::-1], mask[...,0], vis.make_palette(2))
         plt.figure()
         plt.imshow(vis_img)
