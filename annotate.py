@@ -207,35 +207,35 @@ frame_end = downscale(frame_end, 1000, False, pad_img=False)
 # mask_end_warped, shift = warp_image(mask_end, M, alpha_channel=False, is_mask=False)
 # total_mask, offset_start, offset_end = merge_images(mask_start, mask_end_warped, shift, blend=False)
 
-M = homography(frame_start, frame_end, draw_matches=False)
-frame_end_warped, shift = warp_image(frame_end, M, alpha_channel=False, is_mask=False)
-full_img, offset_start, offset_end = merge_images(frame_start, frame_end_warped, shift, blend=True)
-offset_start_x, offset_start_y = offset_start
+# M = homography(frame_start, frame_end, draw_matches=False)
+# frame_end_warped, shift = warp_image(frame_end, M, alpha_channel=False, is_mask=False)
+# full_img, offset_start, offset_end = merge_images(frame_start, frame_end_warped, shift, blend=True)
+# offset_start_x, offset_start_y = offset_start
 # plt.figure()
 # plt.imshow(full_img[...,::-1])
 # plt.show()
 
-success = True
-current_time = start_time_msec + delay_msec
-while success and (current_time < end_time_msec):
-    vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
-    success, frame_next = vidcap.read()
-    if success:
-        frame_next = downscale(frame_next, 1000, False, pad_img=False)
-        M = homography(frame_start, frame_next, draw_matches=False)
-        warped, shift = warp_image(frame_next, M, alpha_channel=False)
-        h, w, z = warped.shape
-        offset_x, offset_y = get_offset(shift)
-        offset_x += offset_x + offset_start_x
-        offset_y += offset_y + offset_start_y
-        mask = total_mask[offset_y:offset_y + h, offset_x:offset_x + w]
-        mask[mask == 255] = 1
-        vis_img = vis.vis_seg(frame_next[...,::-1], mask[...,0], vis.make_palette(2))
-        plt.figure()
-        plt.imshow(vis_img)
-        plt.show()
-        print msec2string(current_time)
-        current_time += delay_msec
+# success = True
+# current_time = start_time_msec + delay_msec
+# while success and (current_time < end_time_msec):
+#     vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
+#     success, frame_next = vidcap.read()
+#     if success:
+#         frame_next = downscale(frame_next, 1000, False, pad_img=False)
+#         M = homography(frame_start, frame_next, draw_matches=False)
+#         warped, shift = warp_image(frame_next, M, alpha_channel=False)
+#         h, w, z = warped.shape
+#         offset_x, offset_y = get_offset(shift)
+#         offset_x += offset_x + offset_start_x
+#         offset_y += offset_y + offset_start_y
+#         mask = total_mask[offset_y:offset_y + h, offset_x:offset_x + w]
+#         mask[mask == 255] = 1
+#         vis_img = vis.vis_seg(frame_next[...,::-1], mask[...,0], vis.make_palette(2))
+#         plt.figure()
+#         plt.imshow(vis_img)
+#         plt.show()
+#         print msec2string(current_time)
+#         current_time += delay_msec
 
 
 success = True
