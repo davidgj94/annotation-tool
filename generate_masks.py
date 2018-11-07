@@ -1,7 +1,13 @@
-from utils import homography, warp_image, string2msec, msec2string, merge_images
+from utils import homography, warp_image, string2msec, msec2string, merge_images, get_offset
 import json
 import cv2
 import os.path
+import vis
+import argparse
+from downscale import _downscale as downscale
+import pdb
+import numpy as np
+from matplotlib import pyplot as plt
 
 def make_parser():
 	parser = argparse.ArgumentParser()
@@ -19,17 +25,19 @@ def generate_masks_section(vidcap, fps, section, save_dir):
 	success, frame_start = vidcap.read()
 	frame_start = downscale(frame_start, 1000, False, pad_img=False)
 	mask_start = cv2.imread(os.path.join(save_dir, "{}.png".format(section["start"])))
-	mask_start[...,0] = downscale(mask_start, 1000, True, pad_img=False)
+	mask_start = downscale(mask_start, 1000, True, pad_img=False)
 
 	vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
 	success, frame_end = vidcap.read()
 	frame_end = downscale(frame_end, 1000, False, pad_img=False)
 	mask_end = cv2.imread(os.path.join(save_dir, "{}.png".format(section["end"])))
-	mask_end[...,0] = downscale(mask_end, 1000, True, pad_img=False)
+	mask_end = downscale(mask_end, 1000, True, pad_img=False)
 
 	M = homography(frame_start, frame_end, draw_matches=False)
 	mask_end_warped, shift = warp_image(mask_end, M, alpha_channel=False, is_mask=False)
 	full_mask, offset_start, offset_end = merge_images(mask_start, mask_end_warped, shift, blend=False)
+	full_mask = np.uint8(full_mask)
+	vis_img = vis.vis_seg(full_mask, full_mask[...,0], vis.make_palette(3))
 	offset_start_x, offset_start_y = offset_start
 
 	success = True
@@ -45,7 +53,12 @@ def generate_masks_section(vidcap, fps, section, save_dir):
 	        offset_x, offset_y = shift
 	        offset_x += offset_start_x
 	        offset_y += offset_start_y
+	        offset_x, offset_y = get_offset((offset_x, offset_y))
 	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
+	        vis_img = vis.vis_seg(warped[...,::-1], mask[...,0], vis.make_palette(3))
+	        plt.figure()
+	        plt.imshow(vis_img)
+	        plt.show()
 	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), mask)
 	    current_time += delay_msec
 
