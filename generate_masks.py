@@ -19,13 +19,13 @@ def generate_masks_section(vidcap, fps, section, save_dir):
 	success, frame_start = vidcap.read()
 	frame_start = downscale(frame_start, 1000, False, pad_img=False)
 	mask_start = cv2.imread(os.path.join(save_dir, "{}.png".format(section["start"])))
-	mask_start = downscale(mask_start, 1000, True, pad_img=False)
+	mask_start[...,0] = downscale(mask_start, 1000, True, pad_img=False)
 
 	vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
 	success, frame_end = vidcap.read()
 	frame_end = downscale(frame_end, 1000, False, pad_img=False)
 	mask_end = cv2.imread(os.path.join(save_dir, "{}.png".format(section["end"])))
-	mask_end = downscale(mask_end, 1000, True, pad_img=False)
+	mask_end[...,0] = downscale(mask_end, 1000, True, pad_img=False)
 
 	M = homography(frame_start, frame_end, draw_matches=False)
 	mask_end_warped, shift = warp_image(mask_end, M, alpha_channel=False, is_mask=False)
