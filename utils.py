@@ -82,7 +82,6 @@ def warp_image(image, homography, alpha_channel=True, is_mask=False):
 
     shift = (int(xmin), int(ymin))
 
-    # warped = image
     return warped, shift
 
 
