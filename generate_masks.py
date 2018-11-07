@@ -47,6 +47,7 @@ def generate_masks_section(vidcap, fps, section, save_dir):
 	        offset_y += offset_start_y
 	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
 	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), mask)
+	    current_time += delay_msec
 
 
 
