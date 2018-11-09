@@ -8,12 +8,63 @@ from downscale import _downscale as downscale
 import pdb
 import numpy as np
 from matplotlib import pyplot as plt
+from pathlib import Path
+import PIL.Image
+import PIL.ImageDraw
 
 def make_parser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--json_path', type=str, required=True)
 	parser.add_argument('--save_dir', type=str, required=True)
+	parser.add_argument('--annotations_dir', type=str, required=True)
+	parser.add_argument('--labels', type=str, required=True)
 	return parser
+
+def check_point(point, sz):
+
+	h, w = sz
+
+	if point[0] >= w:
+		x = w - 1
+	elif point[0] < 0:
+		x = 0
+	else:
+		x = point[0]
+
+
+	if point[1] >= h:
+		y = h - 1
+	elif h < 0:
+		y = 0
+	else:
+		y = point[1]
+
+	return (x, y)
+    
+
+def json2mask(annotation_path, save_dir, labels_mapping, sz=(2160, 4096)):
+
+	mask = np.zeros(sz).astype(np.uint8)
+	mask = PIL.Image.fromarray(mask)
+	draw = PIL.ImageDraw.Draw(mask)
+
+	with open(annotation_path, 'r') as f:
+		json_data = json.load(f)
+
+	for shape in json_data["shapes"]:
+
+		npoints = len(shape["points"])
+		xy = [check_point(tuple(point), sz) for point in shape["points"]]
+		label_mapping = labels_mapping[shape["label"]]
+
+		if npoints == 2:
+			draw.line(xy=xy, fill=label_mapping, width=20)
+		elif npoints > 2:
+			draw.polygon(xy=xy, fill=label_mapping)
+
+	mask_name = os.path.splitext(os.path.basename(annotation_path))[0] + ".png"
+	mask.save(os.path.join(save_dir, mask_name))
+	
 
 def generate_masks_section(vidcap, fps, section, save_dir):
 
@@ -74,6 +125,17 @@ if __name__ == "__main__":
 	fps = float(json_data['fps'])
 	video_path = json_data['video_path']
 	sections = json_data['sections']
+
+	with open(args.labels, 'r') as f:
+		labels_mapping = dict()
+		for line in f:
+			line = line.replace(" ", "")
+			label_name = line.split(':')[0]
+			label_integer = int(line.split(':')[1])
+			labels_mapping[label_name] = label_integer
+
+	for glob in Path(args.annotations_dir).glob('*.json'):
+		json2mask(os.path.join(args.annotations_dir, glob.parts[-1]), args.save_dir, labels_mapping)
 
 	vidcap = cv2.VideoCapture(video_path)
 
