@@ -18,6 +18,7 @@ def make_parser():
 	parser.add_argument('--save_dir', type=str, required=True)
 	parser.add_argument('--annotations_dir', type=str, required=True)
 	parser.add_argument('--labels', type=str, required=True)
+	parser.add_argument('--vis_dir', type=str, required=True)
 	return parser
 
 def check_point(point, sz):
@@ -66,7 +67,7 @@ def json2mask(annotation_path, save_dir, labels_mapping, sz=(2160, 4096)):
 	mask.save(os.path.join(save_dir, mask_name))
 	
 
-def generate_masks_section(vidcap, fps, section, save_dir):
+def generate_masks_section(vidcap, fps, section, save_dir, vis_dir):
 
 	start_time_msec = string2msec(section["start"])
 	end_time_msec = string2msec(section["end"])
@@ -88,7 +89,6 @@ def generate_masks_section(vidcap, fps, section, save_dir):
 	mask_end_warped, shift = warp_image(mask_end, M, alpha_channel=False, is_mask=False)
 	full_mask, offset_start, offset_end = merge_images(mask_start, mask_end_warped, shift, blend=False)
 	full_mask = np.uint8(full_mask)
-	vis_img = vis.vis_seg(full_mask, full_mask[...,0], vis.make_palette(3))
 	offset_start_x, offset_start_y = offset_start
 
 	success = True
@@ -106,11 +106,12 @@ def generate_masks_section(vidcap, fps, section, save_dir):
 	        offset_y += offset_start_y
 	        offset_x, offset_y = get_offset((offset_x, offset_y))
 	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
-	        vis_img = vis.vis_seg(warped[...,::-1], mask[...,0], vis.make_palette(3))
-	        plt.figure()
-	        plt.imshow(vis_img)
-	        plt.show()
+	        vis_img = vis.vis_seg(warped, mask[...,0], vis.make_palette(3))
+	        #plt.figure()
+	        #plt.imshow(vis_img)
+	        #plt.show()
 	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), mask)
+	        cv2.imwrite(os.path.join(vis_dir, "{}.png".format(msec2string(current_time))), vis_img)
 	    current_time += delay_msec
 
 
@@ -140,7 +141,7 @@ if __name__ == "__main__":
 	vidcap = cv2.VideoCapture(video_path)
 
 	for section in sections:
-		generate_masks_section(vidcap, fps, section, args.save_dir)
+		generate_masks_section(vidcap, fps, section, args.save_dir, args.vis_dir)
 
 
 
