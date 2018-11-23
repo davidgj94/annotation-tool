@@ -1,3 +1,4 @@
 *.MOV
 *.png
 *.pyc
+examples_annotation_segmentation/*
