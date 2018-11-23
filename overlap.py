@@ -1,4 +1,5 @@
-from utils import homography, warp_image, string2msec, msec2string, merge_images
+import utils
+from utils import homography, warp_image, string2msec, msec2string, merge_images, undistort
 import os.path
 import os
 import json
@@ -27,6 +28,7 @@ class HelperClass:
 		self.vidcap = cv2.VideoCapture(video_path)
 		self.vidcap.set(cv2.CAP_PROP_POS_MSEC,(self.start_time_msec))
 		success, self.frame_start = self.vidcap.read()
+		self.frame_start = undistort(self.frame_start)
 		self.frame_start = downscale(self.frame_start, 1000, False, pad_img=False)
 		self.frame_start_red = color_img(self.frame_start, [0, 0, 255])
 		self.json_path = json_path
@@ -45,6 +47,7 @@ class HelperClass:
 		self.vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
 		success, frame_next = self.vidcap.read()
 		if success:
+			frame_next = undistort(frame_next)
 			frame_next = downscale(frame_next, 1000, False, pad_img=False)
 			if len(self.M_list) < self.index:
 				M = homography(self.frame_start, frame_next, draw_matches=False)
@@ -101,6 +104,7 @@ class HelperClass:
 			self.M_list = []
 			self.vidcap.set(cv2.CAP_PROP_POS_MSEC,(self.start_time_msec))
 			success, self.frame_start = self.vidcap.read()
+			self.frame_start = undistort(self.frame_start)
 			self.frame_start = downscale(self.frame_start, 1000, False, pad_img=False)
 			self.frame_start_red = color_img(self.frame_start, [0, 0, 255])
 
