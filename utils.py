@@ -6,6 +6,7 @@ import argparse
 import time
 import pdb
 import vis
+import os.path
 from downscale import _downscale as downscale
 import operator
 
@@ -13,31 +14,34 @@ _FISHESYE_METHOD_DATA = 'datos_calib/fisheye'
 _STANDARD_METHOD_DATA = 'datos_calib/standard'
 
 _D = np.load(os.path.join(_FISHESYE_METHOD_DATA,'D.npy'))
-_K = np.load(os.path.join(_FISHESYE_METHOD_DATA,'D.npy'))
+_K = np.load(os.path.join(_FISHESYE_METHOD_DATA,'K.npy'))
 _dist = np.load(os.path.join(_STANDARD_METHOD_DATA,'dist.npy'))
 _mtx = np.load(os.path.join(_STANDARD_METHOD_DATA,'mtx.npy'))
 
 
-def undistort(img, use_fisheye_method=True, TOTAL=True):
+def undistort(img, use_fisheye_method=True, TOTAL=True, is_mask=False):
 
-h,  w = img.shape[:2]
+    h, w = img.shape[:2]
 
-if use_fisheye_method:
+    if use_fisheye_method:
 
-    if TOTAL:
-        new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(_K, _D, (w,h), np.eye(3), balance=1)
-        map1, map2 = cv2.fisheye.initUndistortRectifyMap(_K, _D, np.eye(3), new_K, (w,h), cv2.CV_16SC2)
+        if TOTAL:
+            new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(_K, _D, (w,h), np.eye(3), balance=1)
+            map1, map2 = cv2.fisheye.initUndistortRectifyMap(_K, _D, np.eye(3), new_K, (w,h), cv2.CV_16SC2)
+        else:
+            map1, map2 = cv2.fisheye.initUndistortRectifyMap(_K, _D, np.eye(3), _K, (w,h), cv2.CV_16SC2)
+
+        if is_mask:
+            dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
+        else:
+            dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+
     else:
-        map1, map2 = cv2.fisheye.initUndistortRectifyMap(_K, _D, np.eye(3), K, (w,h), cv2.CV_16SC2)
 
-    dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        newcameramtx, roi=cv2.getOptimalNewCameraMatrix(_mtx, _dist,(w,h),0,(w,h))
+        dst = cv2.undistort(img, _mtx, _dist, None, newcameramtx)
 
-else:
-
-    newcameramtx, roi=cv2.getOptimalNewCameraMatrix(_mtx, _dist,(w,h),0,(w,h))
-    dst = cv2.undistort(img, _mtx, _dist, None, newcameramtx)
-
-return dst
+    return dst
 
 def homography(image_a, image_b, draw_matches=True):
 

@@ -20,7 +20,7 @@ def color_img(img, color):
 
 class HelperClass:
 
-	def __init__(self, video_path, start_time, fps, json_path):
+	def __init__(self, video_path, start_time, fps, json_path, save_dir):
 		self.index = 0
 		self.M_list = []
 		self.start_time_msec = string2msec(start_time)
@@ -37,9 +37,11 @@ class HelperClass:
 			json_data = dict()
 			json_data['fps'] = fps
 			json_data['video_path'] = video_path
+			json_data['save_dir'] = save_dir
 			json_data['sections'] = []
 			with open(json_path, 'w') as f:
 				json.dump(json_data, f)
+		self.save_dir = save_dir
 
 	def plot_overlap(self):
 
@@ -58,10 +60,11 @@ class HelperClass:
 		 	warped, shift = warp_image(frame_next, M, alpha_channel=False)	
 	        warped_blue = color_img(warped, [255, 0, 0])
 
-	        overlapped_img, _, _ = merge_images(self.frame_start_red, warped_blue, shift)
+	        overlapped_img_color, _, _ = merge_images(self.frame_start_red, warped_blue, shift)
+	        self.overlapped_img, self.offset_start, self.offset_end = merge_images(self.frame_start, warped, shift)
 
 	        plt.figure()
-	        plt.imshow(overlapped_img[...,::-1])
+	        plt.imshow(overlapped_img_color[...,::-1])
 	        plt.show()
 	        
 	        print msec2string(current_time)
@@ -88,12 +91,18 @@ class HelperClass:
 		section = dict()
 		section['start'] = msec2string(self.start_time_msec)
 		section['end'] = msec2string(self.start_time_msec + self.index * self.delay_msec)
+		section['offset_start'] = list(self.offset_start)
+		section['offset_end'] = list(self.offset_end)
 
 		with open(self.json_path, 'r+') as f:
 			json_data = json.load(f)
 			json_data['sections'].append(section)
 			f.seek(0)
 			json.dump(json_data, f)
+
+		cv2.imwrite(os.path.join(self.save_dir, '{}-{}.png'.format(section['start'], section['end'])), self.overlapped_img)
+
+
 
 	def save_and_continue(self):
 
@@ -115,13 +124,14 @@ def make_parser():
 	parser.add_argument('--video_path', type=str, required=True)
 	parser.add_argument('--start_time', type=str, required=True)
 	parser.add_argument('--json_path', type=str, required=True)
+	parser.add_argument('--save_dir', type=str, required=True)
 	parser.add_argument('--fps', type=float, default=1.0)
 	return parser
 
 if __name__ == "__main__":
 
 	args = make_parser().parse_args()
-	helper = HelperClass(args.video_path, args.start_time, args.fps, args.json_path)
+	helper = HelperClass(args.video_path, args.start_time, args.fps, args.json_path, args.save_dir)
 	root = Tk()
 	button1 = Button(root, text='Atras', command=lambda:helper.backward())
 	button1.pack(side=LEFT)

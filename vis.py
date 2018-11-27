@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 
 def make_palette(num_classes):
     """
@@ -48,6 +49,8 @@ def vis_seg(img, seg, palette, alpha=0.5):
     """
     vis = np.array(img, dtype=np.float32)
     mask = seg > 0
+    if not vis.shape[:2] == mask.shape:
+        pdb.set_trace()
     vis[mask] *= 1. - alpha
     vis[mask] += alpha * palette[seg[mask].flat]
     vis = vis.astype(np.uint8)
