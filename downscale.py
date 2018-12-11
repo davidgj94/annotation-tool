@@ -1,4 +1,3 @@
-
 import cv2
 from pathlib import Path
 from argparse import ArgumentParser

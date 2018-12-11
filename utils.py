@@ -9,6 +9,7 @@ import vis
 import os.path
 from downscale import _downscale as downscale
 import operator
+from downscale import get_padding
 
 _FISHESYE_METHOD_DATA = 'datos_calib/fisheye'
 _STANDARD_METHOD_DATA = 'datos_calib/standard'
@@ -174,3 +175,12 @@ def merge_images(image1, image2, shift, blend=True, alpha=0.5):
         new_image = np.uint8(new_image)
 
     return new_image, offset1, offset2
+
+
+def pad_img(img, pad_value):
+
+    height, width = img.shape[:2]
+    x_pad = get_padding(width)
+    y_pad = get_padding(height)
+    img_padded = cv2.copyMakeBorder(img, y_pad[0], y_pad[1], x_pad[0], x_pad[1], cv2.BORDER_CONSTANT, value=[pad_value, pad_value, pad_value])
+    return img_padded

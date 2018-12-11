@@ -1,5 +1,5 @@
 import utils
-from utils import homography, warp_image, string2msec, msec2string, merge_images, get_offset, undistort
+from utils import homography, warp_image, string2msec, msec2string, merge_images, get_offset, undistort, pad_img
 import json
 import cv2
 import os.path
@@ -45,7 +45,7 @@ def check_point(point, sz):
     
 
 
-def json2mask(annotation_path, save_dir, labels_mapping, sz=(2160, 4096)):
+def json2mask(annotation_path, labels_mapping, sz=(2160, 4096)):
 
 	mask = np.zeros(sz).astype(np.uint8)
 	mask = PIL.Image.fromarray(mask)
@@ -103,12 +103,12 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 
 	mask_start = full_mask[offset_start_y:offset_start_y + frame_start.shape[0], offset_start_x:offset_start_x + frame_start.shape[1]]
 	vis_start = vis.vis_seg(frame_start, mask_start, vis.make_palette(3))
-	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["start"])), mask_start)
+	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["start"])), pad_img(mask_start, 255))
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["start"])), vis_start)
 
 	mask_end = full_mask[offset_end_y:offset_end_y + warped_end.shape[0], offset_end_x:offset_end_x + warped_end.shape[1]]
 	vis_end = vis.vis_seg(warped_end, mask_end, vis.make_palette(3))
-	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["end"])), mask_end)
+	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["end"])), pad_img(mask_end, 255))
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["end"])), vis_end)
 
 	success = True
@@ -127,8 +127,9 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 	        offset_y += offset_start_y
 	        offset_x, offset_y = get_offset((offset_x, offset_y))
 	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
+	        warped = warped[:mask.shape[0],:mask.shape[1]]
 	        vis_img = vis.vis_seg(warped, mask, vis.make_palette(3))
-	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), mask)
+	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), pad_img(mask, 255))
 	        cv2.imwrite(os.path.join(vis_dir, "{}.png".format(msec2string(current_time))), vis_img)
 	    current_time += delay_msec
 
@@ -161,7 +162,7 @@ if __name__ == "__main__":
 		section_name = os.path.splitext(os.path.basename(glob.parts[-1]))[0]
 
 		img_section = cv2.imread(os.path.join(merged_dir, section_name + '.png'))
-		full_mask = json2mask(os.path.join(args.annotations_dir, glob.parts[-1]), args.save_dir, labels_mapping, sz=img_section.shape[:2])
+		full_mask = json2mask(os.path.join(args.annotations_dir, glob.parts[-1]), labels_mapping, sz=img_section.shape[:2])
 		
 		section = select_section(sections, section_name)
 		generate_masks_section(vidcap, fps, section, args.save_dir, args.vis_dir, full_mask)

@@ -37,7 +37,7 @@ class HelperClass:
 			json_data = dict()
 			json_data['fps'] = fps
 			json_data['video_path'] = video_path
-			json_data['save_dir'] = save_dir
+			json_data['save_dir'] = os.path.join(save_dir,'imgs')
 			json_data['sections'] = []
 			with open(json_path, 'w') as f:
 				json.dump(json_data, f)
@@ -100,7 +100,7 @@ class HelperClass:
 			f.seek(0)
 			json.dump(json_data, f)
 
-		cv2.imwrite(os.path.join(self.save_dir, '{}-{}.png'.format(section['start'], section['end'])), self.overlapped_img)
+		cv2.imwrite(os.path.join(self.save_dir, 'imgs/{}-{}.png'.format(section['start'], section['end'])), self.overlapped_img)
 
 
 
