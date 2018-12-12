@@ -22,6 +22,8 @@ _mtx = np.load(os.path.join(_STANDARD_METHOD_DATA,'mtx.npy'))
 
 def undistort(img, use_fisheye_method=True, TOTAL=True, is_mask=False):
 
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+
     h, w = img.shape[:2]
 
     if use_fisheye_method:
@@ -32,10 +34,13 @@ def undistort(img, use_fisheye_method=True, TOTAL=True, is_mask=False):
         else:
             map1, map2 = cv2.fisheye.initUndistortRectifyMap(_K, _D, np.eye(3), _K, (w,h), cv2.CV_16SC2)
 
-        if is_mask:
-            dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
-        else:
-            dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        dst_bgr = cv2.remap(img[...,:-1], map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        dst_alpha = cv2.remap(img[...,-1], map1, map2, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
+        dst = np.dstack((dst_bgr, dst_alpha))
+        # if is_mask:
+        #     dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
+        # else:
+        #     dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
 
     else:
 
@@ -108,10 +113,14 @@ def warp_image(image, homography, alpha_channel=True, is_mask=False):
     heigth = int(round(ymax - ymin))
 
     size = (width, heigth)
-    if is_mask:
-        warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_NEAREST)
-    else:
-        warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_LINEAR)
+    warped_bgr = cv2.warpPerspective(src=image[...,:-1], M=homography, dsize=size, flags=cv2.INTER_LINEAR)
+    warped_alpha = cv2.warpPerspective(src=image[...,-1], M=homography, dsize=size, flags=cv2.INTER_NEAREST)
+
+    warped = np.dstack((warped_bgr, warped_alpha))
+    # if is_mask:
+    #     warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_NEAREST)
+    # else:
+    #     warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_LINEAR)
 
     shift = (int(xmin), int(ymin))
 

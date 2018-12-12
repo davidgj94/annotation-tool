@@ -35,7 +35,7 @@ def color_seg(seg, palette):
     """
     return palette[seg.flat].reshape(seg.shape + (3,))
 
-def vis_seg(img, seg, palette, alpha=0.5):
+def vis_seg(img, seg, palette, alpha=0.5, ignore_label=255):
     """
     Visualize segmentation as an overlay on the image.
 
@@ -48,9 +48,7 @@ def vis_seg(img, seg, palette, alpha=0.5):
         H x W x 3 image with overlaid segmentation
     """
     vis = np.array(img, dtype=np.float32)
-    mask = seg > 0
-    if not vis.shape[:2] == mask.shape:
-        pdb.set_trace()
+    mask = np.logical_and(seg > 0, seg != ignore_label)
     vis[mask] *= 1. - alpha
     vis[mask] += alpha * palette[seg[mask].flat]
     vis = vis.astype(np.uint8)

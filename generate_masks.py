@@ -77,7 +77,28 @@ def select_section(sections, section_name):
 			return section
 	return None
 
+
+def preprocess_img(img):
+
+	img = undistort(img)
+	img_bgr_down = downscale(img[...,:-1], 1000, False, pad_img=False)
+	alpha_channel_down = downscale(img[...,-1], 1000, True, pad_img=False)
+	new_img = np.dstack((img_bgr_down, alpha_channel_down))
+
+	return new_img
+
+def fix_mask(warped, mask):
+
+	warped = warped[:mask.shape[0], :mask.shape[1]]
+	new_mask = mask.copy()
+	new_mask[warped[...,-1] != 255] = 255
+	warped = warped[...,:-1]
+
+	return warped, new_mask
+
+
 def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
+
 
 	start_time_msec = string2msec(section["start"])
 	end_time_msec = string2msec(section["end"])
@@ -87,26 +108,28 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 
 	vidcap.set(cv2.CAP_PROP_POS_MSEC,(start_time_msec))
 	success, frame_start = vidcap.read()
-	frame_start = undistort(frame_start)
-	frame_start = downscale(frame_start, 1000, False, pad_img=False)
-
+	frame_start = preprocess_img(frame_start)
 
 	vidcap.set(cv2.CAP_PROP_POS_MSEC,(end_time_msec))
 	success, frame_end = vidcap.read()
-	frame_end = undistort(frame_end)
-	frame_end = downscale(frame_end, 1000, False, pad_img=False)
-	M = homography(frame_start, frame_end, draw_matches=False)
+	frame_end = preprocess_img(frame_end)
+
+	M = homography(frame_start[...,:-1], frame_end[...,:-1], draw_matches=False)
 	warped_end, _ = warp_image(frame_end, M, alpha_channel=False)
 
 	offset_start_x, offset_start_y = offset_start
 	offset_end_x, offset_end_y = offset_end
-
+	
 	mask_start = full_mask[offset_start_y:offset_start_y + frame_start.shape[0], offset_start_x:offset_start_x + frame_start.shape[1]]
+	frame_start, mask_start = fix_mask(frame_start, mask_start)
+
 	vis_start = vis.vis_seg(frame_start, mask_start, vis.make_palette(3))
 	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["start"])), pad_img(mask_start, 255))
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["start"])), vis_start)
-
+	
 	mask_end = full_mask[offset_end_y:offset_end_y + warped_end.shape[0], offset_end_x:offset_end_x + warped_end.shape[1]]
+	warped_end, mask_end = fix_mask(warped_end, mask_end)
+
 	vis_end = vis.vis_seg(warped_end, mask_end, vis.make_palette(3))
 	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["end"])), pad_img(mask_end, 255))
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["end"])), vis_end)
@@ -117,9 +140,11 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 	    vidcap.set(cv2.CAP_PROP_POS_MSEC,(current_time))
 	    success, frame_next = vidcap.read()
 	    if success:
+
 	    	frame_next = undistort(frame_next)
 	        frame_next = downscale(frame_next, 1000, False, pad_img=False)
 	        M = homography(frame_start, frame_next, draw_matches=False)
+
 	        warped, shift = warp_image(frame_next, M, alpha_channel=False)
 	        h, w, z = warped.shape
 	        offset_x, offset_y = shift
@@ -127,10 +152,12 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 	        offset_y += offset_start_y
 	        offset_x, offset_y = get_offset((offset_x, offset_y))
 	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
-	        warped = warped[:mask.shape[0],:mask.shape[1]]
+	        warped, mask = fix_mask(warped, mask)
+
 	        vis_img = vis.vis_seg(warped, mask, vis.make_palette(3))
 	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), pad_img(mask, 255))
 	        cv2.imwrite(os.path.join(vis_dir, "{}.png".format(msec2string(current_time))), vis_img)
+	        
 	    current_time += delay_msec
 
 
