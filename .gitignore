@@ -2,3 +2,5 @@
 *.png
 *.pyc
 examples_annotation_segmentation/*
+*.npy
+*.json

@@ -1,5 +1,6 @@
 import utils
-from utils import homography, warp_image, string2msec, msec2string, merge_images, get_offset, undistort, pad_img
+from utils import homography, warp_image, string2msec, msec2string, merge_images, get_offset, undistort
+import utils
 import json
 import cv2
 import os.path
@@ -12,11 +13,13 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 import PIL.Image
 import PIL.ImageDraw
+from math import ceil
 
 def make_parser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--json_path', type=str, required=True)
 	parser.add_argument('--save_dir', type=str, required=True)
+	parser.add_argument('--img_dir', type=str, required=True)
 	parser.add_argument('--annotations_dir', type=str, required=True)
 	parser.add_argument('--labels', type=str, required=True)
 	parser.add_argument('--vis_dir', type=str, required=True)
@@ -61,7 +64,7 @@ def json2mask(annotation_path, labels_mapping, sz=(2160, 4096)):
 		label_mapping = labels_mapping[shape["label"]]
 
 		if npoints == 2:
-			draw.line(xy=xy, fill=label_mapping, width=10)
+			draw.line(xy=xy, fill=label_mapping, width=16)
 		elif npoints > 2:
 			draw.polygon(xy=xy, fill=label_mapping)
 
@@ -84,20 +87,52 @@ def preprocess_img(img):
 	img_bgr_down = downscale(img[...,:-1], 1000, False, pad_img=False)
 	alpha_channel_down = downscale(img[...,-1], 1000, True, pad_img=False)
 	new_img = np.dstack((img_bgr_down, alpha_channel_down))
-
 	return new_img
 
 def fix_mask(warped, mask):
 
 	warped = warped[:mask.shape[0], :mask.shape[1]]
 	new_mask = mask.copy()
-	new_mask[warped[...,-1] != 255] = 255
+	new_mask[warped[...,-1] != 255] = 0
 	warped = warped[...,:-1]
-
 	return warped, new_mask
 
 
-def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
+def pad_imgs(mask_dir, img_dir):
+
+	h_list = []
+	w_list = []
+	for glob in Path(mask_dir).glob("*.png"):
+
+		img_name = glob.parts[-1]
+		mask = cv2.imread(os.path.join(mask_dir, img_name))
+		h, w = mask.shape[:2]
+		h_list.append(h)
+		w_list.append(w)
+
+	h_max = max(h_list)
+	w_max = max(w_list)
+
+	H = h_max + int(ceil(float(h_max) / 32) * 32 - h_max)
+	W = w_max + int(ceil(float(w_max) / 32) * 32 - w_max)
+
+
+	for glob in Path(mask_dir).glob("*.png"):
+
+		img_name = glob.parts[-1]
+		mask = cv2.imread(os.path.join(mask_dir, img_name))
+		img = cv2.imread(os.path.join(img_dir, img_name))
+
+		img_padded = utils.pad_img(img, (H, W))
+		mask_padded = utils.pad_img(mask, (H,W))
+
+		cv2.imwrite(os.path.join(mask_dir, img_name), mask_padded)
+		cv2.imwrite(os.path.join(img_dir, img_name), img_padded)
+
+	print (H, W)
+
+
+def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, full_mask):
 
 
 	start_time_msec = string2msec(section["start"])
@@ -122,17 +157,19 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 	
 	mask_start = full_mask[offset_start_y:offset_start_y + frame_start.shape[0], offset_start_x:offset_start_x + frame_start.shape[1]]
 	frame_start, mask_start = fix_mask(frame_start, mask_start)
-
 	vis_start = vis.vis_seg(frame_start, mask_start, vis.make_palette(3))
-	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["start"])), pad_img(mask_start, 255))
+
+	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["start"])), mask_start)
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["start"])), vis_start)
+	cv2.imwrite(os.path.join(img_dir, "{}.png".format(section["start"])), frame_start)
 	
 	mask_end = full_mask[offset_end_y:offset_end_y + warped_end.shape[0], offset_end_x:offset_end_x + warped_end.shape[1]]
 	warped_end, mask_end = fix_mask(warped_end, mask_end)
-
 	vis_end = vis.vis_seg(warped_end, mask_end, vis.make_palette(3))
-	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["end"])), pad_img(mask_end, 255))
+
+	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["end"])), mask_end)
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["end"])), vis_end)
+	cv2.imwrite(os.path.join(img_dir, "{}.png".format(section["end"])), warped_end)
 
 	success = True
 	current_time = start_time_msec + delay_msec
@@ -141,23 +178,24 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, full_mask):
 	    success, frame_next = vidcap.read()
 	    if success:
 
-	    	frame_next = undistort(frame_next)
-	        frame_next = downscale(frame_next, 1000, False, pad_img=False)
+	    	frame_next = preprocess_img(frame_next)
 	        M = homography(frame_start, frame_next, draw_matches=False)
-
 	        warped, shift = warp_image(frame_next, M, alpha_channel=False)
+
 	        h, w, z = warped.shape
 	        offset_x, offset_y = shift
 	        offset_x += offset_start_x
 	        offset_y += offset_start_y
 	        offset_x, offset_y = get_offset((offset_x, offset_y))
+
 	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
 	        warped, mask = fix_mask(warped, mask)
 
 	        vis_img = vis.vis_seg(warped, mask, vis.make_palette(3))
-	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), pad_img(mask, 255))
+	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), mask)
 	        cv2.imwrite(os.path.join(vis_dir, "{}.png".format(msec2string(current_time))), vis_img)
-	        
+	        cv2.imwrite(os.path.join(img_dir, "{}.png".format(msec2string(current_time))), warped)
+
 	    current_time += delay_msec
 
 
@@ -192,7 +230,9 @@ if __name__ == "__main__":
 		full_mask = json2mask(os.path.join(args.annotations_dir, glob.parts[-1]), labels_mapping, sz=img_section.shape[:2])
 		
 		section = select_section(sections, section_name)
-		generate_masks_section(vidcap, fps, section, args.save_dir, args.vis_dir, full_mask)
+		generate_masks_section(vidcap, fps, section, args.save_dir, args.vis_dir, args.img_dir, full_mask)
+
+	pad_imgs(args.save_dir, args.img_dir)
 
 
 

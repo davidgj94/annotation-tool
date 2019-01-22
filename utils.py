@@ -9,7 +9,7 @@ import vis
 import os.path
 from downscale import _downscale as downscale
 import operator
-from downscale import get_padding
+#from downscale import get_padding
 
 _FISHESYE_METHOD_DATA = 'datos_calib/fisheye'
 _STANDARD_METHOD_DATA = 'datos_calib/standard'
@@ -20,7 +20,7 @@ _dist = np.load(os.path.join(_STANDARD_METHOD_DATA,'dist.npy'))
 _mtx = np.load(os.path.join(_STANDARD_METHOD_DATA,'mtx.npy'))
 
 
-def undistort(img, use_fisheye_method=True, TOTAL=True, is_mask=False):
+def undistort(img, use_fisheye_method=False, TOTAL=True, is_mask=False):
 
     img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
@@ -37,11 +37,7 @@ def undistort(img, use_fisheye_method=True, TOTAL=True, is_mask=False):
         dst_bgr = cv2.remap(img[...,:-1], map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
         dst_alpha = cv2.remap(img[...,-1], map1, map2, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
         dst = np.dstack((dst_bgr, dst_alpha))
-        # if is_mask:
-        #     dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT)
-        # else:
-        #     dst = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-
+    
     else:
 
         newcameramtx, roi=cv2.getOptimalNewCameraMatrix(_mtx, _dist,(w,h),0,(w,h))
@@ -186,10 +182,24 @@ def merge_images(image1, image2, shift, blend=True, alpha=0.5):
     return new_image, offset1, offset2
 
 
-def pad_img(img, pad_value):
+def get_padding(sz, _sz):
+    
+    pad_amount = _sz - sz 
+    
+    if pad_amount % 2:
+        
+        padding = (pad_amount / 2 , pad_amount - pad_amount / 2)
+    else:
+        padding = (pad_amount / 2, pad_amount / 2)
+        
+    return padding
 
+
+def pad_img(img, sz, pad_value=0):
+
+    H, W = sz
     height, width = img.shape[:2]
-    x_pad = get_padding(width)
-    y_pad = get_padding(height)
+    x_pad = get_padding(width, W)
+    y_pad = get_padding(height, H)
     img_padded = cv2.copyMakeBorder(img, y_pad[0], y_pad[1], x_pad[0], x_pad[1], cv2.BORDER_CONSTANT, value=[pad_value, pad_value, pad_value])
     return img_padded
