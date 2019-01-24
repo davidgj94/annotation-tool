@@ -20,7 +20,7 @@ _dist = np.load(os.path.join(_STANDARD_METHOD_DATA,'dist.npy'))
 _mtx = np.load(os.path.join(_STANDARD_METHOD_DATA,'mtx.npy'))
 
 
-def undistort(img, use_fisheye_method=False, TOTAL=True, is_mask=False):
+def undistort(img, use_fisheye_method=False, TOTAL=True, is_mask=False, ):
 
     #img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
@@ -91,12 +91,12 @@ def homography(image_a, image_b, draw_matches=True):
 
 
 
-def warp_image(image, homography, alpha_channel=True, is_mask=False):
+def warp_image(image, homography, alpha_channel=True):
 
     if alpha_channel:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
 
-    h, w, z = image.shape
+    h, w = image.shape[:2]
 
     # Find min and max x, y of new image
     p = np.array([[0, w, w, 0], [0, 0, h, h], [1, 1, 1, 1]])
@@ -116,15 +116,13 @@ def warp_image(image, homography, alpha_channel=True, is_mask=False):
     heigth = int(round(ymax - ymin))
 
     size = (width, heigth)
-    warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_LINEAR)
-    #warped_bgr = cv2.warpPerspective(src=image[...,:-1], M=homography, dsize=size, flags=cv2.INTER_LINEAR)
-    #warped_alpha = cv2.warpPerspective(src=image[...,-1], M=homography, dsize=size, flags=cv2.INTER_NEAREST)
 
-    #warped = np.dstack((warped_bgr, warped_alpha))
-    # if is_mask:
-    #     warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_NEAREST)
-    # else:
-    #     warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_LINEAR)
+    if alpha_channel:
+        warped_bgr = cv2.warpPerspective(src=image[...,:-1], M=homography, dsize=size, flags=cv2.INTER_LINEAR)
+        warped_alpha = cv2.warpPerspective(src=image[...,-1], M=homography, dsize=size, flags=cv2.INTER_NEAREST)
+        warped = np.dstack((warped_bgr, warped_alpha))
+    else:
+        warped = cv2.warpPerspective(src=image, M=homography, dsize=size, flags=cv2.INTER_LINEAR)
 
     shift = (int(xmin), int(ymin))
 
