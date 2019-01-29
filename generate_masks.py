@@ -19,7 +19,7 @@ from matplotlib.patches import Circle
 def make_parser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--work_dir', type=str, required=True)
-	parser.add_argument('--labels', type=str, required=True)
+	parser.add_argument('--labels', type=str, default="labels_mapping.txt")
 	return parser
 
 def check_point(point, sz):
@@ -48,8 +48,13 @@ def check_point(point, sz):
 def json2mask(annotation_path, labels_mapping, sz=(2160, 4096)):
 
 	mask = np.zeros(sz).astype(np.uint8)
+	test_mask = np.zeros(sz).astype(np.uint8)
+
 	mask = PIL.Image.fromarray(mask)
+	test_mask = PIL.Image.fromarray(test_mask)
+
 	draw = PIL.ImageDraw.Draw(mask)
+	test_draw = PIL.ImageDraw.Draw(test_mask)
 
 	with open(annotation_path, 'r') as f:
 		json_data = json.load(f)
@@ -62,10 +67,23 @@ def json2mask(annotation_path, labels_mapping, sz=(2160, 4096)):
 
 		if npoints == 2:
 			draw.line(xy=xy, fill=label_mapping, width=16)
+			test_draw.line(xy=xy, fill=255, width=16)
 		elif npoints > 2:
 			draw.polygon(xy=xy, fill=label_mapping)
+			test_draw.polygon(xy=xy, fill=label_mapping)
 
-	return np.array(mask)
+	for shape in json_data["shapes"]:
+
+		npoints = len(shape["points"])
+		xy = [check_point(tuple(point), sz) for point in shape["points"]]
+		label_mapping = labels_mapping[shape["label"]]
+
+		if npoints == 2:
+			test_draw.line(xy=xy, fill=label_mapping, width=2)
+
+	concat_mask = np.dstack((np.array(mask), np.array(test_mask)))
+
+	return concat_mask
 
 def select_section(sections, section_name):
 
@@ -114,7 +132,7 @@ def fix_mask(warped, mask, sz):
 
 
 
-def pad_imgs(mask_dir, img_dir):
+def pad_imgs(mask_dir, img_dir, mask_test_dir):
 
 	h_list = []
 	w_list = []
@@ -138,17 +156,19 @@ def pad_imgs(mask_dir, img_dir):
 		img_name = glob.parts[-1]
 		mask = cv2.imread(os.path.join(mask_dir, img_name))
 		img = cv2.imread(os.path.join(img_dir, img_name))
+		mask_test = cv2.imread(os.path.join(mask_test_dir, img_name))
 
 		img_padded = utils.pad_img(img, (H, W))
 		mask_padded = utils.pad_img(mask, (H,W))
+		mask_test_padded = utils.pad_img(mask_test, (H,W))
 
 		cv2.imwrite(os.path.join(mask_dir, img_name), mask_padded)
 		cv2.imwrite(os.path.join(img_dir, img_name), img_padded)
+		cv2.imwrite(os.path.join(mask_test_dir, img_name), mask_test_padded)
 
 	print (H, W)
 
-
-def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, full_mask):
+def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, save_test_dir, full_mask):
 
 
 	start_time_msec = string2msec(section["start"])
@@ -171,18 +191,27 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, ful
 	offset_start_x, offset_start_y = offset_start
 	offset_end_x, offset_end_y = offset_end
 	
-	mask_start = full_mask[offset_start_y:offset_start_y + frame_start.shape[0], offset_start_x:offset_start_x + frame_start.shape[1]]
+	#mask_start = full_mask[offset_start_y:offset_start_y + frame_start.shape[0], offset_start_x:offset_start_x + frame_start.shape[1]]
+	mask_start, mask_start_test = np.dsplit(full_mask[offset_start_y:offset_start_y + frame_start.shape[0], offset_start_x:offset_start_x + frame_start.shape[1]], 2)
+	mask_start = np.squeeze(mask_start)
+	mask_start_test = np.squeeze(mask_start_test)
 	vis_start = vis.vis_seg(frame_start, mask_start, vis.make_palette(3))
 
 	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["start"])), mask_start)
+	cv2.imwrite(os.path.join(save_test_dir, "{}.png".format(section["start"])), mask_start_test)
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["start"])), vis_start)
 	cv2.imwrite(os.path.join(img_dir, "{}.png".format(section["start"])), frame_start)
 	
-	mask_end = full_mask[offset_end_y:offset_end_y + warped_end.shape[0], offset_end_x:offset_end_x + warped_end.shape[1]]
-	mask_end = fix_mask(warped_end, mask_end, frame_end.shape)
+	mask_end_ = full_mask[offset_end_y:offset_end_y + warped_end.shape[0], offset_end_x:offset_end_x + warped_end.shape[1]]
+	#mask_end, mask_end_test = np.dsplit(full_mask[offset_end_y:offset_end_y + warped_end.shape[0], offset_end_x:offset_end_x + warped_end.shape[1]], 2)
+	mask_end_ = fix_mask(warped_end, mask_end_, frame_end.shape)
+	mask_end, mask_end_test = np.dsplit(mask_end_, 2)
+	mask_end = np.squeeze(mask_end)
+	mask_end_test = np.squeeze(mask_end_test)
 	vis_end = vis.vis_seg(frame_end, mask_end, vis.make_palette(3))
 
 	cv2.imwrite(os.path.join(save_dir, "{}.png".format(section["end"])), mask_end)
+	cv2.imwrite(os.path.join(save_test_dir, "{}.png".format(section["end"])), mask_end_test)
 	cv2.imwrite(os.path.join(vis_dir, "{}.png".format(section["end"])), vis_end)
 	cv2.imwrite(os.path.join(img_dir, "{}.png".format(section["end"])), frame_end)
 
@@ -207,11 +236,16 @@ def generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, ful
 	        	print
 	        offset_x, offset_y = get_offset((offset_x, offset_y))
 
-	        mask = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
-	        mask = fix_mask(warped, mask, frame_next.shape)
-
+	        mask_ = full_mask[offset_y:offset_y + h, offset_x:offset_x + w]
+	        #mask, mask_test = np.dsplit(full_mask[offset_y:offset_y + h, offset_x:offset_x + w], 2)
+	        mask_ = fix_mask(warped, mask_, frame_next.shape)
+	        mask, mask_test = np.dsplit(mask_, 2)
+	        mask = np.squeeze(mask)
+	        mask_test = np.squeeze(mask_test)
 	        vis_img = vis.vis_seg(frame_next, mask, vis.make_palette(3))
+
 	        cv2.imwrite(os.path.join(save_dir, "{}.png".format(msec2string(current_time))), mask)
+	        cv2.imwrite(os.path.join(save_test_dir, "{}.png".format(msec2string(current_time))), mask_test)
 	        cv2.imwrite(os.path.join(vis_dir, "{}.png".format(msec2string(current_time))), vis_img)
 	        cv2.imwrite(os.path.join(img_dir, "{}.png".format(msec2string(current_time))), frame_next)
 
@@ -225,6 +259,7 @@ if __name__ == "__main__":
 
 	annotations_dir = os.path.join(args.work_dir, "annotations")
 	save_dir = os.path.join(args.work_dir, "masks")
+	save_test_dir = os.path.join(args.work_dir, "masks_test")
 	vis_dir = os.path.join(args.work_dir, "vis")
 	img_dir = os.path.join(args.work_dir, "images")
 	json_path = os.path.join(args.work_dir, "sections.json")
@@ -255,9 +290,9 @@ if __name__ == "__main__":
 		full_mask = json2mask(os.path.join(annotations_dir, glob.parts[-1]), labels_mapping, sz=img_section.shape[:2])
 		
 		section = select_section(sections, section_name)
-		generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, full_mask)
+		generate_masks_section(vidcap, fps, section, save_dir, vis_dir, img_dir, save_test_dir, full_mask)
 
-	pad_imgs(save_dir, img_dir)
+	pad_imgs(save_dir, img_dir, save_test_dir)
 
 
 

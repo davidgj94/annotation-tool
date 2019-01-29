@@ -123,7 +123,6 @@ def make_parser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--video_path', type=str, required=True)
 	parser.add_argument('--start_time', type=str, required=True)
-	parser.add_argument('--json_path', type=str, required=True)
 	parser.add_argument('--save_dir', type=str, required=True)
 	parser.add_argument('--fps', type=float, default=1.0)
 	return parser
@@ -131,7 +130,30 @@ def make_parser():
 if __name__ == "__main__":
 
 	args = make_parser().parse_args()
-	helper = HelperClass(args.video_path, args.start_time, args.fps, args.json_path, args.save_dir)
+	json_path = os.path.join(args.save_dir, 'sections.json')
+	images_dir = os.path.join(args.save_dir, 'images')
+	imgs_dir = os.path.join(args.save_dir, 'imgs')
+	masks_dir = os.path.join(args.save_dir, 'masks')
+	annotations_dir = os.path.join(args.save_dir, 'annotations')
+	vis_dir = os.path.join(args.save_dir, 'vis')
+
+	if not os.path.exists(images_dir):
+		os.mkdir(images_dir)
+
+	if not os.path.exists(imgs_dir):
+		os.mkdir(imgs_dir)
+
+	if not os.path.exists(masks_dir):
+		os.mkdir(masks_dir)
+
+	if not os.path.exists(annotations_dir):
+		os.mkdir(annotations_dir)
+
+	if not os.path.exists(vis_dir):
+		os.mkdir(vis_dir)
+
+
+	helper = HelperClass(args.video_path, args.start_time, args.fps, json_path, args.save_dir)
 	root = Tk()
 	button1 = Button(root, text='Atras', command=lambda:helper.backward())
 	button1.pack(side=LEFT)
